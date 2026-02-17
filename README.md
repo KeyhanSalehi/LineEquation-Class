@@ -78,7 +78,57 @@ int main() {
 }
 ```
 
+## Industrial 4-20mA Scaling Example
+A common industrial use case is scaling a 4‑20 mA current loop sensor reading to an engineering unit (e.g., temperature, pressure). The sensor outputs 4 mA at the minimum physical value and 20 mA at the maximum. Using LineEq, you can define a line that maps current (mA) to the physical quantity and optionally clamp the result to safe limits.
 
 
+```cpp
+#include <iostream>
+#include "lineEq.h"
 
+// Simulated ADC reading to current (mA) conversion
+float adc_to_mA(uint16_t adc_value, float adc_ref_voltage, float resistor) {
+    // Assume ADC range 0-4095, voltage = (adc_value / 4095.0) * adc_ref_voltage
+    float voltage = (adc_value / 4095.0f) * adc_ref_voltage;
+    // Current through sense resistor: I = V / R
+    return voltage / resistor;
+}
+
+int main() {
+    using namespace Tools;
+
+    // Sensor specifications: 4-20 mA corresponds to -40 to 85 °C
+    constexpr float MIN_MA = 4.0f;
+    constexpr float MAX_MA = 20.0f;
+    constexpr float MIN_TEMP = -40.0f;
+    constexpr float MAX_TEMP = 85.0f;
+
+    // Define the scaling line: (mA, temp)
+    LineEq::point_t p_low  = {MIN_MA, MIN_TEMP};
+    LineEq::point_t p_high = {MAX_MA, MAX_TEMP};
+
+    // Create line with output limits set to the sensor range (optional)
+    LineEq scale;
+    scale.create(p_low, p_high, MIN_TEMP, MAX_TEMP);
+
+    // Simulate an ADC reading (e.g., 12 mA = 2048 counts with 3.3V ref, 165 Ω resistor)
+    uint16_t adc_raw = 2048;   // 12 mA midpoint
+    float current = adc_to_mA(adc_raw, 3.3f, 165.0f);
+
+    // Convert current to temperature using the line equation
+    float temperature = scale.evaluate(current);
+
+    std::cout << "ADC raw: " << adc_raw << std::endl;
+    std::cout << "Current: " << current << " mA" << std::endl;
+    std::cout << "Temperature: " << temperature << " °C" << std::endl;
+
+    // Test with out-of-range current (e.g., 3 mA – below 4 mA)
+    current = 3.0f;
+    temperature = scale.evaluate(current);   // Clamped to MIN_TEMP (-40°C)
+    std::cout << "\nCurrent: " << current << " mA (out of range)" << std::endl;
+    std::cout << "Temperature: " << temperature << " °C (clamped to min)" << std::endl;
+
+    return 0;
+}
+```
 
